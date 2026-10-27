@@ -1112,8 +1112,11 @@ export const usePrintPreviewService = <T = any,>(layoutType: PrintPDFLayoutType,
         const bodyItems = config.body?.items ?? [];
         renderLayoutItemsToHtml(config, bodyItems, first.bodyEl, templateVariables);
 
-        // Content layout: every further PDF page gets its own full page (header included) showing it as `image_1`.
-        if (isContentLayout) {
+        // Keyed on actual PDF pages, not the layout type: a Content template without a PDF must still paginate.
+        const isPdfPagesMode = isContentLayout && pdfImageUrls.length > 0;
+
+        // Every further PDF page gets its own full page (header included) showing it as `image_1`.
+        if (isPdfPagesMode) {
             pdfImageUrls.slice(1).forEach((pdfImageUrl) => {
                 const shell = buildShell(true);
                 pages.push(shell.pageEl);
@@ -1133,8 +1136,8 @@ export const usePrintPreviewService = <T = any,>(layoutType: PrintPDFLayoutType,
         const extraDelay = detectSafari() || detectIPad() ? 500 : 200;
         await new Promise((resolve) => setTimeout(resolve, extraDelay));
 
-        // The Content layout is one printed page per PDF page and is never re-paginated.
-        if (!isContentLayout) {
+        // PDF pages are one printed page each and are never re-paginated.
+        if (!isPdfPagesMode) {
             // Conservative on purpose: continuation pages have no header so they actually have more
             // room than this, but reusing the first page's (smaller) budget everywhere is always safe.
             const availableHeight = getAvailableBodyHeightPx(first.pageEl, first.headerEl, first.footerEl);

@@ -217,6 +217,14 @@ export const usePrintPreviewService = <T = any,>(layoutType: PrintPDFLayoutType,
         return Boolean(variant?.hiddenIds?.includes(item.id));
     };
 
+    const getImageSrc = (item: TPrintPDFLayoutItem, variables: Record<string, any>): string =>
+        variables[item.id] ? replaceTemplateVars(item.value, variables) : '';
+
+    // A container holding only images (e.g. `image_section`) has nothing to show once none of
+    // them has a source, so it is dropped instead of leaving an empty frame on the page.
+    const isEmptyImageContainer = (item: TPrintPDFLayoutItem, variables: Record<string, any>): boolean =>
+        !isEmpty(item.items) && item.items.every((child) => child.type === 'image' && !getImageSrc(child, variables));
+
     const renderTableHeader = (table: HTMLTableElement, columns: TPrintPDFTableColumn[] = []) => {
         if (isEmpty(columns)) {
             return;
@@ -391,6 +399,10 @@ export const usePrintPreviewService = <T = any,>(layoutType: PrintPDFLayoutType,
             }
 
             if (item.type === 'container') {
+                if (isEmptyImageContainer(item, templateVariables)) {
+                    return;
+                }
+
                 const container = document.createElement('div');
                 container.style.boxSizing = 'border-box';
 
@@ -444,37 +456,27 @@ export const usePrintPreviewService = <T = any,>(layoutType: PrintPDFLayoutType,
             }
 
             if (item.type === 'image') {
-                const imageSrc = templateVariables[item.id];
+                const imageSrc = getImageSrc(item, templateVariables);
 
-                if (imageSrc) {
-                    const img = document.createElement('img');
-
-                    if (item.id) {
-                        img.dataset.layoutId = item.id;
-                    }
-
-                    applyElementCommonStyle(config, img, item.style, item.type);
-
-                    // IMPORTANT: Set crossOrigin BEFORE src for Safari compatibility
-                    img.crossOrigin = 'anonymous';
-                    img.alt = item.id || 'image';
-                    img.src = replaceTemplateVars(item.value, templateVariables);
-                    // img.style.maxHeight = img.style.maxHeight || '100%';
-                    // img.style.maxWidth = img.style.maxWidth || '100%';
-                    // img.style.backgroundColor = img.style.backgroundColor || 'transparent';
-
-                    parent.appendChild(img);
-                } else {
-                    const placeholder = document.createElement('div');
-
-                    if (item.id) {
-                        placeholder.dataset.layoutId = item.id;
-                    }
-
-                    applyElementCommonStyle(config, placeholder, item.style, item.type);
-
-                    parent.appendChild(placeholder);
+                // No image source: render nothing rather than an empty placeholder box.
+                if (!imageSrc) {
+                    return;
                 }
+
+                const img = document.createElement('img');
+
+                if (item.id) {
+                    img.dataset.layoutId = item.id;
+                }
+
+                applyElementCommonStyle(config, img, item.style, item.type);
+
+                // IMPORTANT: Set crossOrigin BEFORE src for Safari compatibility
+                img.crossOrigin = 'anonymous';
+                img.alt = item.id || 'image';
+                img.src = imageSrc;
+
+                parent.appendChild(img);
 
                 return;
             }
